@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Worms of Beauty v2.1 — Generative Art</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --panel-bg: rgba(0, 0, 0, 0.4);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --text-primary: rgba(255, 255, 255, 0.95);
+            --text-secondary: rgba(255, 255, 255, 0.6);
+            --accent: #ff2d2d;
+            --accent-hover: #ff5555;
+            --input-bg: rgba(255, 255, 255, 0.1);
+            --input-border: rgba(255, 255, 255, 0.2);
+            --recording-red: #e74c3c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #000;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Canvas fills the viewport */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #canvas-container canvas {
+            display: block;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Lora', serif;
+            color: var(--text-secondary);
+            font-size: 16px;
+        }
+
+        /* Floating panel overlay */
+        .panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 280px;
+            max-height: calc(100vh - 40px);
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 20px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            color: var(--text-primary);
+            z-index: 100;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        .panel.collapsed {
+            transform: translateX(calc(100% + 40px));
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .panel::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .panel::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        .panel h1 {
+            font-family: 'Lora', serif;
+            font-size: 20px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .panel .subtitle {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-bottom: 24px;
+            line-height: 1.4;
+        }
+
+        .version-tag {
+            display: inline-block;
+            background: var(--accent);
+            color: white;
+            font-size: 9px;
+            padding: 2px 5px;
+            border-radius: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        .control-section {
+            margin-bottom: 24px;
+        }
+
+        .control-section h3 {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .seed-input {
+            width: 100%;
+            background: var(--input-bg);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 10px;
+            border: 1px solid var(--input-border);
+            text-align: center;
+            color: var(--text-primary);
+        }
+
+        .seed-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .seed-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+
+        .control-group {
+            margin-bottom: 16px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: var(--accent-hover);
+        }
+
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .value-display {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+            min-width: 50px;
+            text-align: right;
+        }
+
+        .color-group {
+            margin-bottom: 12px;
+        }
+
+        .color-group label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .color-picker-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .color-picker-container input[type="color"] {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+        }
+
+        .color-value {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .button {
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--input-border);
+        }
+
+        .button:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .button.primary {
+            background: var(--accent);
+            color: white;
+            border: none;
+        }
+
+        .button.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .button.recording {
+            background: var(--recording-red);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .button-row {
+            display: flex;
+            gap: 6px;
+        }
+
+        .button-row .button { flex: 1; }
+
+        .recording-settings {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid var(--panel-border);
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .setting-row label {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .setting-row select {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--input-border);
+            font-family: 'Poppins', sans-serif;
+            font-size: 11px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+        }
+
+        .info-text {
+            font-size: 10px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            font-style: italic;
+        }
+
+        /* Toggle button */
+        .panel-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 44px;
+            height: 44px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            cursor: pointer;
+            z-index: 99;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            font-size: 20px;
+            transition: all 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .panel-toggle.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .panel-toggle:hover {
+            background: rgba(0, 0, 0, 0.6);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Recording indicator */
+        .recording-indicator {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid var(--panel-border);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .recording-indicator.active { opacity: 1; }
+
+        .recording-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--recording-red);
+            border-radius: 50%;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .recording-time {
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        /* Hide panel button in panel header */
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 4px;
+        }
+
+        .hide-panel {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            padding: 0;
+            line-height: 1;
+            transition: color 0.2s ease;
+        }
+
+        .hide-panel:hover {
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <div class="loading">Initializing atmosphere...</div>
+    </div>
+
+    <div id="recording-indicator" class="recording-indicator">
+        <div class="recording-dot"></div>
+        <span id="recording-time" class="recording-time">00:00</span>
+    </div>
+
+    <button id="panel-toggle" class="panel-toggle" onclick="togglePanel()">☰</button>
+
+    <div id="panel" class="panel">
+        <div class="panel-header">
+            <h1>Worms of Beauty <span class="version-tag">v2.1</span></h1>
+            <button class="hide-panel" onclick="togglePanel()">×</button>
+        </div>
+        <p class="subtitle">Particles drift through fog-like density fields.</p>
+
+        <!-- Seed Section -->
+        <div class="control-section">
+            <h3>Seed</h3>
+            <input type="text" id="seed-input" class="seed-input" value="12345" onchange="updateSeed()">
+            <div class="seed-controls">
+                <button class="button" onclick="previousSeed()">← Prev</button>
+                <button class="button" onclick="nextSeed()">Next →</button>
+            </div>
+            <button class="button primary" onclick="randomSeedAndUpdate()">Random Seed</button>
+        </div>
+
+        <!-- Parameters Section -->
+        <div class="control-section">
+            <h3>Parameters</h3>
+            
+            <div class="control-group">
+                <label>Particle Count</label>
+                <div class="slider-container">
+                    <input type="range" id="particleCount" min="1000" max="8000" step="500" value="4000" oninput="updateParam('particleCount', this.value)">
+                    <span class="value-display" id="particleCount-value">4000</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Drift Speed</label>
+                <div class="slider-container">
+                    <input type="range" id="driftSpeed" min="0.05" max="0.5" step="0.05" value="0.15" oninput="updateParam('driftSpeed', this.value)">
+                    <span class="value-display" id="driftSpeed-value">0.15</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Noise Scale</label>
+                <div class="slider-container">
+                    <input type="range" id="noiseScale" min="0.001" max="0.008" step="0.001" value="0.003" oninput="updateParam('noiseScale', this.value)">
+                    <span class="value-display" id="noiseScale-value">0.003</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Time Flow</label>
+                <div class="slider-container">
+                    <input type="range" id="timeFlow" min="0.0001" max="0.002" step="0.0001" value="0.0005" oninput="updateParam('timeFlow', this.value)">
+                    <span class="value-display" id="timeFlow-value">0.0005</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Particle Size</label>
+                <div class="slider-container">
+                    <input type="range" id="particleSize" min="1" max="4" step="0.5" value="1.5" oninput="updateParam('particleSize', this.value)">
+                    <span class="value-display" id="particleSize-value">1.5</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Base Opacity</label>
+                <div class="slider-container">
+                    <input type="range" id="baseOpacity" min="5" max="40" step="5" value="15" oninput="updateParam('baseOpacity', this.value)">
+                    <span class="value-display" id="baseOpacity-value">15</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>Trail Dissolve</label>
+                <div class="slider-container">
+                    <input type="range" id="dissolveSpeed" min="0" max="20" step="1" value="0" oninput="updateParam('dissolveSpeed', this.value)">
+                    <span class="value-display" id="dissolveSpeed-value">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Colors Section -->
+        <div class="control-section">
+            <h3>Atmosphere</h3>
+            
+            <div class="color-group">
+                <label>Warm Tone</label>
+                <div class="color-picker-container">
+                    <input type="color" id="warmColor" value="#ff2d2d" onchange="updateColor('warmColor', this.value)">
+                    <span class="color-value" id="warmColor-value">#ff2d2d</span>
+                </div>
+            </div>
+
+            <div class="color-group">
+                <label>Cool Tone</label>
+                <div class="color-picker-container">
+                    <input type="color" id="coolColor" value="#2d7fff" onchange="updateColor('coolColor', this.value)">
+                    <span class="color-value" id="coolColor-value">#2d7fff</span>
+                </div>
+            </div>
+
+            <div class="color-group">
+                <label>Background</label>
+                <div class="color-picker-container">
+                    <input type="color" id="bgColor" value="#0a0a0a" onchange="updateColor('bgColor', this.value)">
+                    <span class="color-value" id="bgColor-value">#0a0a0a</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recording Section -->
+        <div class="control-section">
+            <h3>Recording</h3>
+            <button id="recordBtn" class="button primary" onclick="toggleRecording()">⏺ Start Recording</button>
+            
+            <div class="recording-settings">
+                <div class="setting-row">
+                    <label>Frame Rate</label>
+                    <select id="frameRate">
+                        <option value="30">30 fps</option>
+                        <option value="60" selected>60 fps</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Quality</label>
+                    <select id="videoBitrate">
+                        <option value="2500000">Medium</option>
+                        <option value="5000000" selected>High</option>
+                        <option value="10000000">Ultra</option>
+                    </select>
+                </div>
+            </div>
+            <p class="info-text">WebM format. Best in Chrome/Edge.</p>
+        </div>
+
+        <!-- Actions Section -->
+        <div class="control-section">
+            <h3>Actions</h3>
+            <div class="button-row">
+                <button class="button" onclick="resetParameters()">Reset</button>
+                <button class="button" onclick="clearCanvas()">Clear</button>
+            </div>
+            <div style="height: 6px;"></div>
+            <button class="button primary" onclick="downloadImage()">Download PNG</button>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════════════
+        // WORMS OF BEAUTY v2.1 — PARAMETERS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let params = {
+            seed: 12345,
+            particleCount: 4000,
+            driftSpeed: 0.15,
+            noiseScale: 0.003,
+            timeFlow: 0.0005,
+            particleSize: 1.5,
+            baseOpacity: 15,
+            dissolveSpeed: 0,
+            warmColor: '#ff2d2d',
+            coolColor: '#2d7fff',
+            bgColor: '#0a0a0a'
+        };
+
+        let defaultParams = {...params};
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PANEL TOGGLE
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let panelVisible = true;
+
+        function togglePanel() {
+            panelVisible = !panelVisible;
+            document.getElementById('panel').classList.toggle('collapsed', !panelVisible);
+            document.getElementById('panel-toggle').classList.toggle('visible', !panelVisible);
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // VIDEO RECORDING VARIABLES
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let isRecording = false;
+        let recordingStartTime = 0;
+        let recordingTimerInterval = null;
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PARTICLE ATMOSPHERE ALGORITHM
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let particles = [];
+        let time = 0;
+
+        function setup() {
+            // Full viewport canvas
+            const canvas = createCanvas(windowWidth, windowHeight);
+            canvas.parent('canvas-container');
+            colorMode(RGB, 255, 255, 255, 255);
+            initializeSystem();
+            document.querySelector('.loading').style.display = 'none';
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            initializeSystem();
+        }
+
+        function initializeSystem() {
+            randomSeed(params.seed);
+            noiseSeed(params.seed);
+            time = 0;
+            particles = [];
+
+            let warm = hexToRgb(params.warmColor);
+            let cool = hexToRgb(params.coolColor);
+
+            for (let i = 0; i < params.particleCount; i++) {
+                particles.push(new Particle(warm, cool));
+            }
+
+            let bg = hexToRgb(params.bgColor);
+            background(bg.r, bg.g, bg.b);
+        }
+
+        function draw() {
+            if (params.dissolveSpeed > 0) {
+                let bg = hexToRgb(params.bgColor);
+                noStroke();
+                fill(bg.r, bg.g, bg.b, params.dissolveSpeed);
+                rect(0, 0, width, height);
+            }
+            
+            time += params.timeFlow;
+
+            for (let p of particles) {
+                p.update();
+                p.display();
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PARTICLE CLASS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        class Particle {
+            constructor(warm, cool) {
+                this.x = random(width);
+                this.y = random(height);
+                this.warm = warm;
+                this.cool = cool;
+                this.colorBias = noise(this.x * 0.005, this.y * 0.005);
+                this.sizeVariation = random(0.7, 1.3);
+            }
+
+            update() {
+                let noiseVal = noise(
+                    this.x * params.noiseScale,
+                    this.y * params.noiseScale,
+                    time
+                );
+                
+                let angle = noiseVal * TWO_PI * 2;
+                let vx = cos(angle) * params.driftSpeed;
+                let vy = sin(angle) * params.driftSpeed;
+                vy -= params.driftSpeed * 0.1;
+                
+                this.x += vx;
+                this.y += vy;
+
+                if (this.x < 0) this.x = width;
+                if (this.x > width) this.x = 0;
+                if (this.y < 0) this.y = height;
+                if (this.y > height) this.y = 0;
+
+                this.colorBias = lerp(
+                    this.colorBias,
+                    noise(this.x * 0.003, this.y * 0.003, time * 0.5),
+                    0.01
+                );
+            }
+
+            display() {
+                let r = lerp(this.cool.r, this.warm.r, this.colorBias);
+                let g = lerp(this.cool.g, this.warm.g, this.colorBias);
+                let b = lerp(this.cool.b, this.warm.b, this.colorBias);
+                
+                let densityNoise = noise(
+                    this.x * 0.01,
+                    this.y * 0.01,
+                    time * 2
+                );
+                let alpha = params.baseOpacity * (0.3 + densityNoise * 0.7);
+                
+                noStroke();
+                fill(r, g, b, alpha);
+                
+                let size = params.particleSize * this.sizeVariation;
+                ellipse(this.x, this.y, size, size);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // VIDEO RECORDING FUNCTIONS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            const canvas = document.querySelector('#canvas-container canvas');
+            if (!canvas) return;
+
+            const frameRate = parseInt(document.getElementById('frameRate').value);
+            const bitrate = parseInt(document.getElementById('videoBitrate').value);
+            const stream = canvas.captureStream(frameRate);
+
+            let mimeType = 'video/webm;codecs=vp9';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+                mimeType = 'video/webm;codecs=vp8';
+                if (!MediaRecorder.isTypeSupported(mimeType)) {
+                    mimeType = 'video/webm';
+                }
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: mimeType,
+                    videoBitsPerSecond: bitrate
+                });
+            } catch (e) {
+                alert('Recording not supported in this browser.');
+                return;
+            }
+
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) recordedChunks.push(event.data);
+            };
+            mediaRecorder.onstop = () => saveRecording();
+            mediaRecorder.start(100);
+            
+            isRecording = true;
+            recordingStartTime = Date.now();
+
+            const btn = document.getElementById('recordBtn');
+            btn.textContent = '⏹ Stop Recording';
+            btn.classList.add('recording');
+            document.getElementById('recording-indicator').classList.add('active');
+            recordingTimerInterval = setInterval(updateRecordingTimer, 1000);
+            updateRecordingTimer();
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+
+            const btn = document.getElementById('recordBtn');
+            btn.textContent = '⏺ Start Recording';
+            btn.classList.remove('recording');
+            document.getElementById('recording-indicator').classList.remove('active');
+            clearInterval(recordingTimerInterval);
+        }
+
+        function updateRecordingTimer() {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const seconds = (elapsed % 60).toString().padStart(2, '0');
+            document.getElementById('recording-time').textContent = `${minutes}:${seconds}`;
+        }
+
+        function saveRecording() {
+            if (recordedChunks.length === 0) return;
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `worms-of-beauty-${params.seed}-${Date.now()}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            recordedChunks = [];
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // UTILITY FUNCTIONS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function hexToRgb(hex) {
+            let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : {r: 128, g: 128, b: 128};
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // UI CONTROL HANDLERS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function updateParam(paramName, value) {
+            if (paramName === 'particleCount') {
+                params[paramName] = parseInt(value);
+                initializeSystem();
+            } else {
+                params[paramName] = parseFloat(value);
+            }
+            document.getElementById(paramName + '-value').textContent = value;
+        }
+
+        function updateColor(colorId, value) {
+            params[colorId] = value;
+            document.getElementById(colorId + '-value').textContent = value;
+            
+            let warm = hexToRgb(params.warmColor);
+            let cool = hexToRgb(params.coolColor);
+            for (let p of particles) {
+                p.warm = warm;
+                p.cool = cool;
+            }
+            
+            if (colorId === 'bgColor') {
+                initializeSystem();
+            }
+        }
+
+        function clearCanvas() {
+            let bg = hexToRgb(params.bgColor);
+            background(bg.r, bg.g, bg.b);
+        }
+
+        function downloadImage() {
+            saveCanvas('worms-of-beauty-' + params.seed, 'png');
+        }
+
+        function updateSeedDisplay() {
+            document.getElementById('seed-input').value = params.seed;
+        }
+
+        function updateSeed() {
+            let input = document.getElementById('seed-input');
+            let newSeed = parseInt(input.value);
+            if (newSeed && newSeed > 0) {
+                params.seed = newSeed;
+                initializeSystem();
+            } else {
+                updateSeedDisplay();
+            }
+        }
+
+        function previousSeed() {
+            params.seed = Math.max(1, params.seed - 1);
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function nextSeed() {
+            params.seed = params.seed + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function randomSeedAndUpdate() {
+            params.seed = Math.floor(Math.random() * 999999) + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function resetParameters() {
+            params = {...defaultParams};
+            
+            document.getElementById('particleCount').value = params.particleCount;
+            document.getElementById('particleCount-value').textContent = params.particleCount;
+            document.getElementById('driftSpeed').value = params.driftSpeed;
+            document.getElementById('driftSpeed-value').textContent = params.driftSpeed;
+            document.getElementById('noiseScale').value = params.noiseScale;
+            document.getElementById('noiseScale-value').textContent = params.noiseScale;
+            document.getElementById('timeFlow').value = params.timeFlow;
+            document.getElementById('timeFlow-value').textContent = params.timeFlow;
+            document.getElementById('particleSize').value = params.particleSize;
+            document.getElementById('particleSize-value').textContent = params.particleSize;
+            document.getElementById('baseOpacity').value = params.baseOpacity;
+            document.getElementById('baseOpacity-value').textContent = params.baseOpacity;
+            document.getElementById('dissolveSpeed').value = params.dissolveSpeed;
+            document.getElementById('dissolveSpeed-value').textContent = params.dissolveSpeed;
+            
+            document.getElementById('warmColor').value = params.warmColor;
+            document.getElementById('warmColor-value').textContent = params.warmColor;
+            document.getElementById('coolColor').value = params.coolColor;
+            document.getElementById('coolColor-value').textContent = params.coolColor;
+            document.getElementById('bgColor').value = params.bgColor;
+            document.getElementById('bgColor-value').textContent = params.bgColor;
+            
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        window.addEventListener('load', function() {
+            updateSeedDisplay();
+        });
+    </script>
+</body>
+</html>
